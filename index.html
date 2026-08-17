@@ -248,6 +248,8 @@
   (Project Settings > API 에서 확인 가능)
 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -298,10 +300,10 @@
       <div class="form-group">
         <label class="form-label">소음 수준 측정 (참고용)</label>
         <div class="db-meter-row">
-          <div class="db-meter-btn" onclick="simulateMeasure()">🎙 측정 시작</div>
+          <div class="db-meter-btn" onclick="startRealMeasurement()">🎙 측정 시작 (2.5초)</div>
           <div class="db-meter-value" id="dbValue">-- dB</div>
         </div>
-        <div class="db-meter-note">※ 스마트폰 측정값은 법적 효력이 없는 참고 자료입니다. 공식 증거가 필요하면 이웃사이센터 무료 측정기 대여를 이용하세요.</div>
+        <div class="db-meter-note">※ 스마트폰 마이크는 전문 측정기처럼 보정되어 있지 않아 절대값이 정확하지 않습니다. 법적 효력이 없는 참고 자료이며, 공식 증거가 필요하면 이웃사이센터 무료 측정기 대여를 이용하세요.</div>
       </div>
 
       <div class="form-group">
@@ -347,8 +349,8 @@
 // ============================================================
 // Supabase 연동 — 본인의 프로젝트 값으로 교체하세요
 // ============================================================
-const SUPABASE_URL = 'https://waivgtjywfocdejtjbly.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_iM8Ud8yIf1DJ6yi5TbpBjg_BZq0AZDg';
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 브라우저별 임시 식별자 (로그인 붙이기 전까지 "내 기록" 구분용)
@@ -477,11 +479,70 @@ function selectType(type) {
   document.getElementById('typeAir').classList.toggle('selected', type === 'air');
 }
 
-function simulateMeasure() {
-  // 실제 앱에서는 마이크 API로 측정. 프로토타입에서는 시뮬레이션.
-  const val = Math.floor(Math.random() * 25) + 35; // 35~60dB 랜덤
-  document.getElementById('dbValue').textContent = val + ' dB';
-  document.getElementById('dbValue').dataset.val = val;
+// ---------- 실제 마이크 dB 측정 ----------
+// 참고: 스마트폰 마이크는 전문 소음측정기처럼 보정되어 있지 않아,
+// 절대적인 데시벨 값이 정확하지 않습니다. "상대적인 크기 비교" 용도로만 참고하세요.
+function rmsToApproxDb(rms) {
+  const safeRms = Math.max(rms, 0.0001);
+  let db = Math.round(20 * Math.log10(safeRms) + 90); // 경험적 보정값 — 일반 실내 소음이 대략 30~70dB대로 나오도록 조정
+  return Math.max(20, Math.min(100, db));
+}
+
+async function startRealMeasurement() {
+  const btn = document.querySelector('.db-meter-btn');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('이 브라우저는 마이크 측정을 지원하지 않아요.');
+    return;
+  }
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    alert('마이크 접근 권한이 필요해요. 브라우저 설정에서 마이크 권한을 허용해주세요.');
+    return;
+  }
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  source.connect(analyser);
+  const dataArray = new Uint8Array(analyser.fftSize);
+
+  btn.textContent = '🎙 측정 중...';
+  const samples = [];
+  const durationMs = 2500;
+  const startTime = Date.now();
+
+  function tick() {
+    analyser.getByteTimeDomainData(dataArray);
+    let sumSquares = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      const norm = (dataArray[i] - 128) / 128;
+      sumSquares += norm * norm;
+    }
+    const rms = Math.sqrt(sumSquares / dataArray.length);
+    samples.push(rms);
+
+    const liveDb = rmsToApproxDb(rms);
+    document.getElementById('dbValue').textContent = liveDb + ' dB';
+
+    if (Date.now() - startTime < durationMs) {
+      requestAnimationFrame(tick);
+    } else {
+      // 측정 종료: 마이크 스트림 정리
+      stream.getTracks().forEach(t => t.stop());
+      audioCtx.close();
+
+      const peakRms = Math.max(...samples); // 순간 최고치를 대표값으로 사용 (소음 이벤트 특성상)
+      const finalDb = rmsToApproxDb(peakRms);
+      document.getElementById('dbValue').textContent = finalDb + ' dB';
+      document.getElementById('dbValue').dataset.val = finalDb;
+      btn.textContent = '🎙 다시 측정';
+    }
+  }
+  tick();
 }
 
 async function submitRecord() {
@@ -562,13 +623,51 @@ function renderReport() {
       </div>
     `).join('')}
 
-    <div class="export-btn" onclick="alert('PDF 리포트 생성 (다음 단계에서 실제 구현 예정)')">📄 PDF 리포트로 내보내기</div>
+    <div class="export-btn" id="exportBtn" onclick="exportReportPdf()">📄 PDF 리포트로 내보내기</div>
 
     <div class="disclaimer-box">
       ⓘ 이 리포트는 기록 패턴을 정리한 참고 자료입니다. 공식 법적 증거가 필요하신 경우, 층간소음이웃사이센터의 전문 측정 서비스를 이용해주세요.
     </div>
   `;
 }
+
+// ---------- PDF 내보내기 ----------
+async function exportReportPdf() {
+  const btn = document.getElementById('exportBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'PDF 만드는 중...';
+  btn.style.pointerEvents = 'none';
+  btn.style.display = 'none'; // 캡처 이미지에 버튼 자체는 안 나오게
+
+  try {
+    const reportEl = document.getElementById('reportBody');
+    const canvas = await html2canvas(reportEl, {
+      backgroundColor: '#F7F5F1',
+      scale: 2,
+    });
+    const imgData = canvas.toDataURL('image/png');
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 12;
+    const imgWidth = pageWidth - margin * 2;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+
+    const today = new Date().toISOString().slice(0, 10);
+    pdf.save(`층간소음_리포트_${today}.pdf`);
+  } catch (err) {
+    console.error('PDF 생성 실패:', err);
+    alert('PDF 생성에 실패했어요. 잠시 후 다시 시도해주세요.');
+  } finally {
+    btn.textContent = originalText;
+    btn.style.pointerEvents = 'auto';
+    btn.style.display = 'block';
+  }
+}
+
 
 // ---------- 템플릿 ----------
 function renderTemplates() {
