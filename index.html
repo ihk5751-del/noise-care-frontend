@@ -91,6 +91,28 @@
   .unit-freq-row .unit-count { font-size: 10.5px; color: #8c8375; width: 34px; text-align: right; flex-shrink: 0; }
   .unit-freq-alert { font-size: 10.5px; color: #C0392B; margin-top: 8px; }
 
+  /* ---- 민원 상세 모달 ---- */
+  .record-detail-modal {
+    position: absolute; inset: 0; z-index: 60;
+    background: rgba(42,37,33,0.45);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .record-detail-modal.open { display: flex; }
+  .record-detail-card {
+    background: var(--paper); border-radius: 16px; padding: 20px;
+    width: 100%; max-width: 340px; box-shadow: 0 12px 32px rgba(0,0,0,0.24);
+  }
+  .record-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .record-detail-title { font-family: 'Noto Serif KR'; font-weight: 700; font-size: 16px; color: var(--slate); }
+  .record-detail-close { cursor: pointer; font-size: 14px; color: #a89f8f; padding: 4px; }
+  .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); gap: 12px; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-key { font-size: 11px; color: #8c8375; flex-shrink: 0; }
+  .detail-val { font-size: 12px; color: var(--charcoal); font-weight: 600; text-align: right; }
+  .detail-daynight { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; background: #FBF0E6; color: var(--amber); margin-left: 4px; }
+  .detail-daynight.night { background: #EEF0F5; color: var(--slate-light); }
+
   /* ---- 타임라인 (파형 모티프) ---- */
   .timeline-item {
     display: flex;
@@ -327,6 +349,17 @@
 
 <div class="app">
 
+  <!-- ===== 민원 상세 모달 ===== -->
+  <div class="record-detail-modal" id="recordDetailModal">
+    <div class="record-detail-card">
+      <div class="record-detail-header">
+        <div class="record-detail-title">민원 상세</div>
+        <div class="record-detail-close" onclick="closeRecordDetail()">✕</div>
+      </div>
+      <div id="recordDetailBody"></div>
+    </div>
+  </div>
+
   <!-- ===== 로그인 게이트 ===== -->
   <div class="auth-gate" id="authGate">
     <div class="auth-eyebrow">시작하기 전에</div>
@@ -407,6 +440,20 @@
             <span class="icon">🔊</span>공기전달<br>(TV·음향기기)
           </div>
         </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">소음 종류 (선택)</label>
+        <select class="form-input" id="inputNoiseDetail">
+          <option value="">선택 안 함</option>
+          <option value="뛰는 소리">뛰는 소리</option>
+          <option value="걷는 소리">걷는 소리</option>
+          <option value="끄는 소리">끄는 소리 (의자·가구)</option>
+          <option value="문 여닫는 소리">문 여닫는 소리</option>
+          <option value="망치질·드릴 소리">망치질·드릴 소리</option>
+          <option value="TV·음향기기">TV·음향기기</option>
+          <option value="기타">기타</option>
+        </select>
       </div>
 
       <div class="form-group">
@@ -785,11 +832,12 @@ async function renderAdminDashboard() {
             const d = new Date(r.occurred_at);
             const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
             const typeLabel = r.type === 'impact' ? '직접충격' : '공기전달';
+            const dayNight = getDayNightLabel(d);
             return `
-              <div class="resident-row">
+              <div class="resident-row" style="cursor:pointer;" onclick="openRecordDetail('${r.id}')">
                 <div>
                   <div class="label">${userLabels[r.user_id]} · ${typeLabel}</div>
-                  <div style="font-size:10px; color:#a89f8f; margin-top:2px;">${dateStr} · ${r.db_level || '-'}dB</div>
+                  <div style="font-size:10px; color:#a89f8f; margin-top:2px;">${dateStr} · ${dayNight} · ${r.db_level || '-'}dB</div>
                 </div>
                 <div class="count">${r.memo ? '📝' : ''}</div>
               </div>
@@ -797,6 +845,41 @@ async function renderAdminDashboard() {
           }).join('')
     }
   `;
+
+  // 상세 모달에서 조회할 수 있도록 전역에 보관
+  window.__adminRecordsById = {};
+  window.__adminUserLabels = userLabels;
+  complexRecords.forEach(r => { window.__adminRecordsById[r.id] = r; });
+}
+
+// 22:00~06:00 야간, 06:00~22:00 주간 (공동주택 층간소음 기준 규칙 기준)
+function getDayNightLabel(dateObj) {
+  const h = dateObj.getHours();
+  return (h >= 6 && h < 22) ? '주간' : '야간';
+}
+
+function openRecordDetail(recordId) {
+  const r = window.__adminRecordsById ? window.__adminRecordsById[recordId] : null;
+  if (!r) return;
+  const label = window.__adminUserLabels[r.user_id];
+  const d = new Date(r.occurred_at);
+  const dateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  const typeLabel = r.type === 'impact' ? '직접충격' : '공기전달';
+  const dayNight = getDayNightLabel(d);
+
+  const modal = document.getElementById('recordDetailModal');
+  document.getElementById('recordDetailBody').innerHTML = `
+    <div class="detail-row"><div class="detail-key">제보 세대</div><div class="detail-val">${label || '-'}</div></div>
+    <div class="detail-row"><div class="detail-key">발생 시각</div><div class="detail-val">${dateStr} <span class="detail-daynight ${dayNight === '야간' ? 'night' : ''}">${dayNight}</span></div></div>
+    <div class="detail-row"><div class="detail-key">소음 유형</div><div class="detail-val">${typeLabel}${r.noise_detail ? ' · ' + r.noise_detail : ''}</div></div>
+    <div class="detail-row"><div class="detail-key">측정 dB</div><div class="detail-val">${r.db_level || '-'} dB (참고용, 법적 효력 없음)</div></div>
+    <div class="detail-row" style="align-items:flex-start;"><div class="detail-key">메모</div><div class="detail-val">${r.memo || '작성된 메모가 없어요.'}</div></div>
+  `;
+  modal.classList.add('open');
+}
+
+function closeRecordDetail() {
+  document.getElementById('recordDetailModal').classList.remove('open');
 }
 
 
@@ -982,6 +1065,7 @@ async function submitRecord() {
   const timeInput = document.getElementById('inputTime').value;
   const memo = document.getElementById('inputMemo').value.trim();
   const dbVal = document.getElementById('dbValue').dataset.val || 40;
+  const noiseDetail = document.getElementById('inputNoiseDetail').value;
 
   if (!timeInput) {
     alert('발생 시각을 입력해주세요.');
@@ -995,6 +1079,7 @@ async function submitRecord() {
     user_id: currentUser.id,
     complex_id: currentProfile ? currentProfile.complex_id : null,
     type: selectedType,
+    noise_detail: noiseDetail || null,
     occurred_at: new Date(timeInput).toISOString(),
     db_level: parseInt(dbVal),
     memo: memo,
@@ -1011,6 +1096,7 @@ async function submitRecord() {
   // 폼 초기화
   document.getElementById('inputTime').value = '';
   document.getElementById('inputMemo').value = '';
+  document.getElementById('inputNoiseDetail').value = '';
   document.getElementById('dbValue').textContent = '-- dB';
   document.getElementById('dbValue').dataset.val = '';
   selectType('impact');
