@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>층간케어 프로토타입</title>
+<title>NoiseCare Pilot Test</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700&family=Pretendard:wght@400;500;600;700&display=swap');
 
@@ -367,16 +367,21 @@
     </div>
   </div>
 
-  <!-- ===== 로그인 게이트 ===== -->
+  <!-- ===== Pilot 테스트 로그인 게이트 (A안: ID/PW) ===== -->
   <div class="auth-gate" id="authGate">
     <img src="https://images.pexels.com/photos/2454686/pexels-photo-2454686.jpeg?auto=compress&cs=tinysrgb&w=600" alt="노을빛에 물든 아파트 외벽 사진" class="auth-hero-photo">
-    <div class="auth-care-quote">우리 집의 작은 소리가 이웃에게는 큰 무게로 다가갈 수 있어요.<br>서로를 배려하는 걸음이 편안한 우리 동네를 만듭니다.</div>
-    <div class="auth-eyebrow">시작하기 전에</div>
-    <div class="auth-title">이메일로 로그인</div>
-    <div class="auth-desc">기록은 계정별로 안전하게 저장돼요.<br>비밀번호 없이, 이메일로 받는 링크만 누르면 돼요.</div>
-    <input type="email" class="form-input" id="authEmail" placeholder="이메일 주소를 입력하세요">
-    <div class="submit-btn" onclick="sendMagicLink()">로그인 링크 받기</div>
+    <div class="auth-care-quote">실제 아파트 배포 전 내부 테스트용입니다.<br>입주민과 관리소 계정으로 각각 로그인해 전체 흐름을 확인하세요.</div>
+    <div class="auth-eyebrow">NoiseCare Pilot Test</div>
+    <div class="auth-title">테스트 로그인</div>
+    <div class="auth-desc">무궁화아파트 테스트 환경<br>입주민 101동 102호 ↔ 무궁화아파트 관리소</div>
+    <input type="text" class="form-input" id="testLoginId" placeholder="아이디">
+    <input type="password" class="form-input" id="testLoginPw" placeholder="비밀번호" onkeydown="if(event.key==='Enter') testLogin()">
+    <div class="submit-btn" onclick="testLogin()">로그인</div>
     <div class="auth-status" id="authStatus"></div>
+    <div style="margin-top:18px; width:100%; font-size:10.5px; line-height:1.7; color:#8c8375; background:#FBF7EF; border:1px solid #EDE3D6; border-radius:10px; padding:10px 12px; text-align:left;">
+      <b>입주민</b> resident01 / 123456<br>
+      <b>관리소</b> manager01 / 123456
+    </div>
   </div>
 
   <!-- ===== 프로필 설정 (입주민 / 관리사무소 선택) ===== -->
@@ -422,6 +427,10 @@
     </div>
     <div style="padding-top:16px;">
       <div class="care-banner">우리 집의 작은 소리가 이웃에게는 큰 무게로 다가갈 수 있어요.<br>서로를 배려하는 걸음이 편안한 우리 동네를 만듭니다.</div>
+      <div id="testResidentUnitCard" style="display:none; background:white; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:14px;">
+        <div style="font-size:10px; color:#8c8375;">테스트 세대</div>
+        <div style="font-size:13px; font-weight:700; color:var(--slate); margin-top:3px;">무궁화아파트 · 101동 102호</div>
+      </div>
       <div class="summary-row" id="summaryRow"></div>
       <div id="timelineList"></div>
     </div>
@@ -1231,7 +1240,290 @@ function switchView(name) {
 }
 
 // ---------- 초기화 ----------
-initAuth();
+
+// ============================================================
+// NoiseCare Pilot Test A안
+// - 실제 아파트 배포 전 내부 검증용
+// - resident01 / 123456 : 무궁화아파트 101동 102호
+// - manager01  / 123456 : 무궁화아파트 관리소
+// - 한 브라우저의 localStorage에 테스트 기록/관리소 답변을 저장해
+//   입주민 → 관리소 → 입주민 흐름을 실제로 눌러볼 수 있게 합니다.
+// ============================================================
+let PILOT_TEST_MODE = false;
+let PILOT_TEST_ROLE = null;
+const PILOT_COMPLEX = {
+  id: 'pilot-mugunghwa',
+  name: '무궁화아파트',
+  managerName: '무궁화아파트 관리소',
+  building: '101동',
+  unit: '102호',
+  inviteCode: 'MUGHWA'
+};
+const PILOT_RECORD_KEY = 'noisecare_pilot_records_v1';
+
+function pilotReadRecords() {
+  try {
+    return JSON.parse(localStorage.getItem(PILOT_RECORD_KEY) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function pilotWriteRecords(items) {
+  localStorage.setItem(PILOT_RECORD_KEY, JSON.stringify(items));
+}
+
+function pilotRecordToUi(r) {
+  return {
+    id: r.id,
+    type: r.type,
+    time: r.occurred_at.slice(0, 16),
+    db: r.db_level,
+    memo: r.memo || '',
+    noise_detail: r.noise_detail || ''
+  };
+}
+
+function testLogin() {
+  const id = (document.getElementById('testLoginId').value || '').trim();
+  const pw = document.getElementById('testLoginPw').value || '';
+  const statusEl = document.getElementById('authStatus');
+
+  let role = null;
+  if (id === 'resident01' && pw === '123456') role = 'resident';
+  if (id === 'manager01' && pw === '123456') role = 'admin';
+
+  if (!role) {
+    statusEl.textContent = '아이디 또는 비밀번호를 확인해주세요.';
+    return;
+  }
+
+  PILOT_TEST_MODE = true;
+  PILOT_TEST_ROLE = role;
+  sessionStorage.setItem('noisecare_pilot_role', role);
+  currentUser = {
+    id: role === 'resident' ? 'pilot-resident-101-102' : 'pilot-manager'
+  };
+  currentProfile = {
+    id: currentUser.id,
+    complex_id: PILOT_COMPLEX.id,
+    role
+  };
+
+  document.getElementById('authGate').style.display = 'none';
+  document.getElementById('profileGate').style.display = 'none';
+
+  if (role === 'admin') {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-admin').classList.add('active');
+    renderAdminDashboard();
+  } else {
+    const card = document.getElementById('testResidentUnitCard');
+    if (card) card.style.display = 'block';
+    switchView('home');
+    loadRecords();
+  }
+}
+
+async function pilotInitAuth() {
+  const rememberedRole = sessionStorage.getItem('noisecare_pilot_role');
+  if (rememberedRole === 'resident' || rememberedRole === 'admin') {
+    PILOT_TEST_MODE = true;
+    PILOT_TEST_ROLE = rememberedRole;
+    currentUser = {
+      id: rememberedRole === 'resident' ? 'pilot-resident-101-102' : 'pilot-manager'
+    };
+    currentProfile = {
+      id: currentUser.id,
+      complex_id: PILOT_COMPLEX.id,
+      role: rememberedRole
+    };
+    document.getElementById('authGate').style.display = 'none';
+    if (rememberedRole === 'admin') {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-admin').classList.add('active');
+      renderAdminDashboard();
+    } else {
+      const card = document.getElementById('testResidentUnitCard');
+      if (card) card.style.display = 'block';
+      switchView('home');
+      loadRecords();
+    }
+  } else {
+    document.getElementById('authGate').style.display = 'flex';
+  }
+}
+
+// 기존 함수 보존
+const _productionLoadRecords = loadRecords;
+const _productionSubmitRecord = submitRecord;
+const _productionRenderAdminDashboard = renderAdminDashboard;
+const _productionLogout = logout;
+
+// 입주민 기록 목록: Pilot이면 localStorage 사용
+loadRecords = async function() {
+  if (!PILOT_TEST_MODE) return _productionLoadRecords();
+
+  isLoading = true;
+  renderHome();
+  records = pilotReadRecords()
+    .filter(r => r.user_id === 'pilot-resident-101-102')
+    .sort((a,b) => new Date(b.occurred_at) - new Date(a.occurred_at))
+    .map(pilotRecordToUi);
+  isLoading = false;
+  renderHome();
+};
+
+// 기록 저장: Pilot이면 DB 대신 테스트 저장소 사용
+submitRecord = async function() {
+  if (!PILOT_TEST_MODE) return _productionSubmitRecord();
+
+  const timeInput = document.getElementById('inputTime').value;
+  const memo = document.getElementById('inputMemo').value.trim();
+  const dbVal = document.getElementById('dbValue').dataset.val || 40;
+  const noiseDetail = document.getElementById('inputNoiseDetail').value;
+
+  if (!timeInput) {
+    alert('발생 시각을 입력해주세요.');
+    return;
+  }
+
+  const items = pilotReadRecords();
+  items.unshift({
+    id: 'pilot-' + Date.now(),
+    user_id: 'pilot-resident-101-102',
+    complex_id: PILOT_COMPLEX.id,
+    apartment_name: PILOT_COMPLEX.name,
+    building: PILOT_COMPLEX.building,
+    unit: PILOT_COMPLEX.unit,
+    type: selectedType,
+    noise_detail: noiseDetail || null,
+    occurred_at: new Date(timeInput).toISOString(),
+    db_level: parseInt(dbVal, 10),
+    memo: memo,
+    status: 'received',
+    manager_reply: ''
+  });
+  pilotWriteRecords(items);
+
+  document.getElementById('inputTime').value = '';
+  document.getElementById('inputMemo').value = '';
+  document.getElementById('inputNoiseDetail').value = '';
+  document.getElementById('dbValue').textContent = '-- dB';
+  delete document.getElementById('dbValue').dataset.val;
+
+  await loadRecords();
+  switchView('home');
+  alert('기록이 저장되었고 무궁화아파트 관리소에 전달되었습니다.');
+};
+
+// 관리소 대시보드: Pilot 기록을 실제 세대(101동 102호)로 표시
+renderAdminDashboard = async function() {
+  if (!PILOT_TEST_MODE) return _productionRenderAdminDashboard();
+
+  document.getElementById('adminComplexName').textContent = PILOT_COMPLEX.managerName;
+  const body = document.getElementById('adminBody');
+  const items = pilotReadRecords().sort((a,b) => new Date(b.occurred_at) - new Date(a.occurred_at));
+  const total = items.length;
+  const impactCount = items.filter(r => r.type === 'impact').length;
+  const pendingCount = items.filter(r => r.status !== 'completed').length;
+
+  body.innerHTML = `
+    <div class="invite-code-card">
+      <div class="label">Pilot 테스트 단지</div>
+      <div class="code">${PILOT_COMPLEX.name}</div>
+      <div class="hint">${PILOT_COMPLEX.building} ${PILOT_COMPLEX.unit} 입주민 테스트 중</div>
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-card"><div class="num">${total}</div><div class="label">전체 민원</div></div>
+      <div class="summary-card"><div class="num">${impactCount}</div><div class="label">직접충격</div></div>
+      <div class="summary-card"><div class="num">${pendingCount}</div><div class="label">확인 필요</div></div>
+    </div>
+
+    <div class="report-section-title">접수 민원</div>
+    ${total === 0 ? `
+      <div class="empty-state">아직 101동 102호에서 전달된 기록이 없습니다.<br>입주민 계정으로 기록을 먼저 저장해보세요.</div>
+    ` : items.map(r => {
+      const d = new Date(r.occurred_at);
+      const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const typeLabel = r.type === 'impact' ? '직접충격' : '공기전달';
+      const statusText = r.status === 'completed' ? '처리완료' : '확인중';
+      return `
+        <div class="template-card">
+          <div class="t-title">${r.building} ${r.unit} · ${typeLabel}</div>
+          <div class="t-situation">${dateStr} · ${r.db_level || '-'}dB · ${statusText}</div>
+          <div class="t-body">${r.noise_detail ? '소음 종류: ' + r.noise_detail + '\\n' : ''}${r.memo || '메모 없음'}</div>
+          ${r.manager_reply ? `<div style="margin-top:9px; padding:9px 10px; background:#EEF0F5; border-radius:8px; font-size:10.5px;">답변: ${r.manager_reply}</div>` : ''}
+          <div style="display:flex; gap:6px; margin-top:10px;">
+            <div class="t-copy" style="flex:1; text-align:center;" onclick="pilotReply('${r.id}')">답변 등록</div>
+            <div class="t-copy" style="flex:1; text-align:center;" onclick="pilotComplete('${r.id}')">처리 완료</div>
+          </div>
+        </div>
+      `;
+    }).join('')}
+  `;
+};
+
+function pilotReply(recordId) {
+  if (!PILOT_TEST_MODE) return;
+  const current = pilotReadRecords();
+  const target = current.find(r => r.id === recordId);
+  if (!target) return;
+  const defaultReply = target.manager_reply || '관리소에서 내용을 확인했습니다. 상황을 확인한 후 안내드리겠습니다.';
+  const reply = prompt('입주민에게 보낼 답변을 입력하세요.', defaultReply);
+  if (reply === null) return;
+  target.manager_reply = reply.trim();
+  target.status = 'reviewed';
+  pilotWriteRecords(current);
+  renderAdminDashboard();
+}
+
+function pilotComplete(recordId) {
+  if (!PILOT_TEST_MODE) return;
+  const current = pilotReadRecords();
+  const target = current.find(r => r.id === recordId);
+  if (!target) return;
+  target.status = 'completed';
+  if (!target.manager_reply) target.manager_reply = '관리소에서 확인 및 안내를 완료했습니다.';
+  pilotWriteRecords(current);
+  renderAdminDashboard();
+}
+
+// 입주민 홈에 관리소 답변 표시
+const _productionRenderHome = renderHome;
+renderHome = function() {
+  _productionRenderHome();
+  if (!PILOT_TEST_MODE || PILOT_TEST_ROLE !== 'resident' || isLoading) return;
+  const list = document.getElementById('timelineList');
+  if (!list) return;
+
+  const replies = pilotReadRecords()
+    .filter(r => r.user_id === 'pilot-resident-101-102' && r.manager_reply)
+    .slice(0, 3);
+
+  if (replies.length) {
+    list.insertAdjacentHTML('beforebegin', `
+      <div class="care-banner" style="background:#EEF0F5; color:var(--slate);">
+        <b>관리소 답변</b><br>
+        ${replies.map(r => `• ${r.manager_reply} ${r.status === 'completed' ? '✓' : ''}`).join('<br>')}
+      </div>
+    `);
+  }
+};
+
+// Pilot 로그아웃
+logout = async function() {
+  if (PILOT_TEST_MODE) {
+    sessionStorage.removeItem('noisecare_pilot_role');
+    location.reload();
+    return;
+  }
+  return _productionLogout();
+};
+
+// Pilot 테스트 초기화
+pilotInitAuth();
 </script>
 
 </body>
