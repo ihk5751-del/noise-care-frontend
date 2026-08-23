@@ -1343,10 +1343,26 @@ function renderHome() {
 }
 
 // ---------- 기록 추가 ----------
+const NOISE_DETAIL_OPTIONS = {
+  impact: ['뛰는 소리', '걷는 소리', '끄는 소리 (의자·가구)', '문 여닫는 소리', '망치질·드릴 소리', '기타'],
+  air: ['TV·음향기기', '악기 소리', '대화·고성', '반려동물 소리', '기타'],
+};
+
+function updateNoiseDetailOptions(type) {
+  const select = document.getElementById('inputNoiseDetail');
+  const prevValue = select.value;
+  const options = NOISE_DETAIL_OPTIONS[type] || NOISE_DETAIL_OPTIONS.impact;
+  select.innerHTML = `<option value="">선택 안 함</option>` +
+    options.map(o => `<option value="${o}">${o}</option>`).join('');
+  // 이전에 고른 값이 새 목록에도 있으면 유지
+  if (options.includes(prevValue)) select.value = prevValue;
+}
+
 function selectType(type) {
   selectedType = type;
   document.getElementById('typeImpact').classList.toggle('selected', type === 'impact');
   document.getElementById('typeAir').classList.toggle('selected', type === 'air');
+  updateNoiseDetailOptions(type);
 }
 
 // ---------- 실제 마이크 dB 측정 ----------
@@ -1466,14 +1482,14 @@ function renderReport() {
   const airCount = total - impactCount;
   const overLimit = records.filter(r => r.db >= 39).length;
 
-  // 시간대별 집계 (간단히 저녁/밤/새벽 구간으로)
-  const hourBuckets = { '18-21시': 0, '21-24시': 0, '0-6시': 0, '6-18시': 0 };
+  // 시간대별 집계 (하루 흐름 순서: 새벽→낮→저녁→밤)
+  const hourBuckets = { '0-6시': 0, '6-18시': 0, '18-21시': 0, '21-24시': 0 };
   records.forEach(r => {
     const h = new Date(r.time).getHours();
-    if (h >= 18 && h < 21) hourBuckets['18-21시']++;
-    else if (h >= 21 || h < 0) hourBuckets['21-24시']++;
-    else if (h >= 0 && h < 6) hourBuckets['0-6시']++;
-    else hourBuckets['6-18시']++;
+    if (h >= 0 && h < 6) hourBuckets['0-6시']++;
+    else if (h >= 6 && h < 18) hourBuckets['6-18시']++;
+    else if (h >= 18 && h < 21) hourBuckets['18-21시']++;
+    else hourBuckets['21-24시']++;
   });
   const maxBucket = Math.max(...Object.values(hourBuckets), 1);
 
@@ -1572,6 +1588,7 @@ function switchView(name) {
 
   if (name === 'report') renderReport();
   if (name === 'template') renderTemplates();
+  if (name === 'add') updateNoiseDetailOptions(selectedType || 'impact');
 }
 
 // ---------- 초기화 ----------
