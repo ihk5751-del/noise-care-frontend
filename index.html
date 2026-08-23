@@ -718,7 +718,7 @@ async function createComplex() {
 
   const { data: complex, error: complexErr } = await supabaseClient
     .from('complexes')
-    .insert({ name, invite_code: code })
+    .insert({ name, invite_code: code, created_by: currentUser.id })
     .select()
     .single();
 
@@ -761,7 +761,7 @@ async function addAnotherComplex() {
 
   const { data: complex, error } = await supabaseClient
     .from('complexes')
-    .insert({ name: name.trim(), invite_code: code })
+    .insert({ name: name.trim(), invite_code: code, created_by: currentUser.id })
     .select()
     .single();
 
