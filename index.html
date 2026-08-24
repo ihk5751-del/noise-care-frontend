@@ -658,11 +658,12 @@ async function onLoggedIn(user) {
     console.error('프로필 조회 실패:', error);
   }
 
-  if (profile) {
+  if (profile && profile.complex_id) {
     currentProfile = profile;
     enterApp();
   } else {
-    // 아직 단지 연결이 안 된 사용자 → 입주민/관리사무소 선택 화면
+    // 아직 단지 연결이 안 된 사용자(프로필이 아예 없거나, 프로필은 있지만
+    // complex_id가 비어있는 경우 모두 포함) → 입주민/관리사무소 선택 화면
     document.getElementById('profileGate').style.display = 'flex';
   }
 }
@@ -721,7 +722,7 @@ async function joinAsResident() {
 
   const { data: newProfile, error: insertErr } = await supabaseClient
     .from('profiles')
-    .insert({ id: currentUser.id, complex_id: complex.id, role: 'resident', unit_number: unitNumber || null, email: currentUser.email || null })
+    .upsert({ id: currentUser.id, complex_id: complex.id, role: 'resident', unit_number: unitNumber || null, email: currentUser.email || null })
     .select()
     .single();
 
@@ -753,17 +754,11 @@ async function createComplex() {
     return;
   }
 
-  // 첫 단지라면 profiles에도 role/complex_id 기록 (기존 구조와의 호환용)
-  const { data: existingProfile } = await supabaseClient
-    .from('profiles')
-    .select('*')
-    .eq('id', currentUser.id)
-    .maybeSingle();
-
-  if (!existingProfile) {
+  // profiles에 role/complex_id 기록 (자동생성된 resident 프로필이 있어도 admin으로 덮어씀)
+  {
     const { data: newProfile, error: profileErr } = await supabaseClient
       .from('profiles')
-      .insert({ id: currentUser.id, complex_id: complex.id, role: 'admin' })
+      .upsert({ id: currentUser.id, complex_id: complex.id, role: 'admin' })
       .select()
       .single();
     if (profileErr) {
