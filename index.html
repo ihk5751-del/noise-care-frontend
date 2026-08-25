@@ -106,6 +106,28 @@
   .unit-freq-row .unit-count { font-size: 10.5px; color: #8c8375; width: 34px; text-align: right; flex-shrink: 0; }
   .unit-freq-alert { font-size: 10.5px; color: #C0392B; margin-top: 8px; }
 
+  /* ---- 처리 현황 분포 ---- */
+  .status-dist-wrap { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+  .status-dist-wrap .chart-title { font-size: 11.5px; font-weight: 700; color: var(--charcoal); margin-bottom: 12px; }
+  .status-dist-bar { display: flex; height: 16px; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+  .status-dist-bar .seg { height: 100%; }
+  .status-dist-bar .seg.status-received { background: #C9C2B3; }
+  .status-dist-bar .seg.status-checking { background: var(--amber); }
+  .status-dist-bar .seg.status-answered { background: var(--sage); }
+  .status-dist-bar .seg.status-closed { background: var(--slate); }
+  .status-dist-legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .status-dist-legend .item { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: #6b6259; }
+  .status-dist-legend .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-dist-legend .dot.status-received { background: #C9C2B3; }
+  .status-dist-legend .dot.status-checking { background: var(--amber); }
+  .status-dist-legend .dot.status-answered { background: var(--sage); }
+  .status-dist-legend .dot.status-closed { background: var(--slate); }
+  .response-time-note {
+    font-size: 10.5px; color: #6b6259; margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .response-time-note strong { color: var(--slate); font-size: 13px; }
+
   /* ---- 민원 상세 모달 ---- */
   .record-detail-modal {
     position: absolute; inset: 0; z-index: 60;
@@ -1026,6 +1048,31 @@ async function renderAdminDashboard() {
   const maxUnitCount = Math.max(1, ...unitEntries.map(e => e[1]));
   const repeatUnits = unitEntries.filter(([,c]) => c >= 3);
 
+  // ---- 처리 현황 분포 ----
+  const statusOrder = ['received', 'checking', 'answered', 'closed'];
+  const statusLabels = { received: '접수', checking: '확인중', answered: '답변완료', closed: '처리완료' };
+  const statusCounts = { received: 0, checking: 0, answered: 0, closed: 0 };
+  complexRecords.forEach(r => {
+    const s = statusOrder.includes(r.status) ? r.status : 'received';
+    statusCounts[s]++;
+  });
+
+  // ---- 평균 답변 소요시간 ----
+  const repliedRecords = complexRecords.filter(r => r.replied_at);
+  let avgResponseText = '아직 답변 이력이 없어요';
+  if (repliedRecords.length > 0) {
+    const totalHours = repliedRecords.reduce((sum, r) => {
+      const diffMs = new Date(r.replied_at) - new Date(r.occurred_at);
+      return sum + Math.max(0, diffMs / (1000 * 60 * 60));
+    }, 0);
+    const avgHours = totalHours / repliedRecords.length;
+    if (avgHours < 24) {
+      avgResponseText = `<strong>${avgHours.toFixed(1)}시간</strong>`;
+    } else {
+      avgResponseText = `<strong>${(avgHours / 24).toFixed(1)}일</strong>`;
+    }
+  }
+
   body.innerHTML = `
     <div class="invite-code-card">
       <div class="label">입주민 초대 코드</div>
@@ -1069,6 +1116,22 @@ async function renderAdminDashboard() {
         `;
       }).join('')}
       ${repeatUnits.length > 0 ? `<div class="unit-freq-alert">⚠️ ${repeatUnits.map(([l]) => l).join(', ')}는 반복 제보 세대예요</div>` : ''}
+    </div>
+
+    <div class="status-dist-wrap">
+      <div class="chart-title">처리 현황</div>
+      <div class="status-dist-bar">
+        ${statusOrder.map(s => {
+          const pct = total > 0 ? Math.round((statusCounts[s] / total) * 100) : 0;
+          return pct > 0 ? `<div class="seg status-${s}" style="width:${pct}%;"></div>` : '';
+        }).join('')}
+      </div>
+      <div class="status-dist-legend">
+        ${statusOrder.map(s => `
+          <div class="item"><span class="dot status-${s}"></span>${statusLabels[s]} ${statusCounts[s]}건</div>
+        `).join('')}
+      </div>
+      <div class="response-time-note">평균 답변 소요시간: ${avgResponseText}</div>
     </div>
     ` : ''}
 
