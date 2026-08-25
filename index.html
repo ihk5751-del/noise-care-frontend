@@ -376,6 +376,26 @@
   }
   .invite-code-card .hint { font-size: 10px; color: #a89f8f; }
 
+  .proxy-entry-btn {
+    background: white; border: 1.5px dashed var(--slate-light); border-radius: 12px;
+    padding: 12px; margin-top: 10px; text-align: center;
+    font-size: 12.5px; font-weight: 700; color: var(--slate-light); cursor: pointer;
+  }
+  .proxy-modal {
+    position: absolute; inset: 0; z-index: 65;
+    background: rgba(35,32,28,0.45);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .proxy-modal.open { display: flex; }
+  .proxy-modal-card {
+    background: var(--paper); border-radius: 16px; padding: 20px;
+    width: 100%; max-width: 340px; box-shadow: 0 12px 32px rgba(0,0,0,0.24);
+    max-height: 85vh; overflow-y: auto;
+  }
+  .proxy-modal-title { font-family: 'Noto Serif KR'; font-weight: 700; font-size: 16px; color: var(--slate); margin-bottom: 4px; }
+  .proxy-modal-desc { font-size: 11px; color: #8c8375; margin-bottom: 14px; line-height: 1.5; }
+
   .resident-row {
     display: flex; justify-content: space-between; align-items: center;
     background: white; border: 1px solid var(--line); border-radius: 10px;
@@ -515,6 +535,43 @@
         <div class="record-detail-close" onclick="closeRecordDetail()">✕</div>
       </div>
       <div id="recordDetailBody"></div>
+    </div>
+  </div>
+
+  <!-- ===== 대리 접수 모달 ===== -->
+  <div class="proxy-modal" id="proxyEntryModal">
+    <div class="proxy-modal-card">
+      <div class="record-detail-header">
+        <div class="proxy-modal-title">전화·방문 민원 대리 접수</div>
+        <div class="record-detail-close" onclick="closeProxyEntryModal()">✕</div>
+      </div>
+      <div class="proxy-modal-desc">스마트폰 사용이 어려운 입주민을 대신해 관리사무소에서 민원을 기록할 수 있어요.</div>
+
+      <div class="form-group">
+        <label class="form-label">동-호수</label>
+        <input type="text" class="form-input" id="proxyUnitInput" placeholder="예: 101-102">
+      </div>
+      <div class="form-group">
+        <label class="form-label">소음 유형</label>
+        <div class="type-choice-row">
+          <div class="type-choice selected" id="proxyTypeImpact" onclick="selectProxyType('impact')">
+            <span class="icon">👣</span>직접충격<br>(뛰거나 걷는 소리)
+          </div>
+          <div class="type-choice" id="proxyTypeAir" onclick="selectProxyType('air')">
+            <span class="icon">🔊</span>공기전달<br>(TV·음향기기)
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">발생 시각</label>
+        <input type="datetime-local" class="form-input" id="proxyTimeInput">
+      </div>
+      <div class="form-group">
+        <label class="form-label">메모</label>
+        <textarea class="form-textarea" id="proxyMemoInput" placeholder="입주민이 전달한 내용을 적어주세요"></textarea>
+      </div>
+      <div class="submit-btn" onclick="saveProxyEntry()">대리 접수 저장</div>
+      <div class="auth-status" id="proxyStatus"></div>
     </div>
   </div>
 
@@ -1074,15 +1131,21 @@ async function renderAdminDashboard() {
   const impactCount = complexRecords.filter(r => r.type === 'impact').length;
 
   // 익명화: 세대 구분은 하되 개인 이메일은 노출하지 않고, user_id 기준으로 "제보자 A/B/C..." 라벨링
+  // 관리사무소 대리 접수(user_id 없음)는 별도로 "대리접수 · 동-호수"로 표시
   const userLabels = {};
   let labelIndex = 0;
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   complexRecords.forEach(r => {
+    if (r.user_id === null) return; // 대리 접수는 아래에서 별도 처리
     if (!userLabels[r.user_id]) {
       userLabels[r.user_id] = '제보 세대 ' + (alphabet[labelIndex] || labelIndex);
       labelIndex++;
     }
   });
+  function labelForRecord(r) {
+    if (r.user_id === null) return '대리접수 · ' + (r.manual_unit || '동-호수 미상');
+    return userLabels[r.user_id];
+  }
 
   // ---- 최근 7일 추이 집계 ----
   const dayBuckets = []; // [{ date, count }] 오래된 날짜 -> 오늘 순
@@ -1122,7 +1185,7 @@ async function renderAdminDashboard() {
   // ---- 세대별 민원 빈도 집계 ----
   const unitCounts = {};
   complexRecords.forEach(r => {
-    const label = userLabels[r.user_id];
+    const label = labelForRecord(r);
     unitCounts[label] = (unitCounts[label] || 0) + 1;
   });
   const unitEntries = Object.entries(unitCounts).sort((a,b) => b[1]-a[1]);
@@ -1160,6 +1223,8 @@ async function renderAdminDashboard() {
       <div class="code">${complex ? complex.invite_code : '----'}</div>
       <div class="hint">이 코드를 입주민에게 안내해주세요</div>
     </div>
+
+    <div class="proxy-entry-btn" onclick="openProxyEntryModal()">📞 전화·방문 민원 대리 접수</div>
 
     <div class="summary-row">
       <div class="summary-card"><div class="num">${total}</div><div class="label">전체 민원</div>${trendHtml}</div>
@@ -1230,7 +1295,7 @@ async function renderAdminDashboard() {
             return `
               <div class="resident-row" style="cursor:pointer;" onclick="openRecordDetail('${r.id}')">
                 <div>
-                  <div class="label">${userLabels[r.user_id]} · ${typeLabel}</div>
+                  <div class="label">${labelForRecord(r)} · ${typeLabel}</div>
                   <div style="font-size:10px; color:#a89f8f; margin-top:2px;">${dateStr} · ${dayNight} · ${r.db_level || '-'}dB</div>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
@@ -1504,6 +1569,70 @@ function closeRecordDetail() {
   document.getElementById('recordDetailModal').classList.remove('open');
 }
 
+// ---------- 대리 접수 (관리사무소가 전화/방문 민원 대신 입력) ----------
+let proxySelectedType = 'impact';
+
+function openProxyEntryModal() {
+  document.getElementById('proxyUnitInput').value = '';
+  document.getElementById('proxyMemoInput').value = '';
+  document.getElementById('proxyStatus').textContent = '';
+  proxySelectedType = 'impact';
+  document.getElementById('proxyTypeImpact').classList.add('selected');
+  document.getElementById('proxyTypeAir').classList.remove('selected', 'air');
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('proxyTimeInput').value = now.toISOString().slice(0, 16);
+  document.getElementById('proxyEntryModal').classList.add('open');
+}
+
+function closeProxyEntryModal() {
+  document.getElementById('proxyEntryModal').classList.remove('open');
+}
+
+function selectProxyType(type) {
+  proxySelectedType = type;
+  document.getElementById('proxyTypeImpact').classList.toggle('selected', type === 'impact');
+  document.getElementById('proxyTypeAir').classList.toggle('selected', type === 'air');
+  document.getElementById('proxyTypeAir').classList.toggle('air', type === 'air');
+}
+
+async function saveProxyEntry() {
+  const unit = document.getElementById('proxyUnitInput').value.trim();
+  const timeInput = document.getElementById('proxyTimeInput').value;
+  const memo = document.getElementById('proxyMemoInput').value.trim();
+  const statusEl = document.getElementById('proxyStatus');
+
+  if (!unit) {
+    statusEl.textContent = '동-호수를 입력해주세요.';
+    return;
+  }
+  if (!timeInput) {
+    statusEl.textContent = '발생 시각을 입력해주세요.';
+    return;
+  }
+
+  statusEl.textContent = '저장 중이에요...';
+
+  const { error } = await supabaseClient.from('records').insert({
+    complex_id: activeComplexId,
+    user_id: null,
+    manual_unit: unit,
+    type: proxySelectedType,
+    occurred_at: new Date(timeInput).toISOString(),
+    db_level: null,
+    memo: memo || null,
+    status: 'received',
+  });
+
+  if (error) {
+    console.error('대리 접수 저장 실패:', error);
+    statusEl.textContent = '저장에 실패했어요. 잠시 후 다시 시도해주세요.';
+    return;
+  }
+
+  closeProxyEntryModal();
+  renderAdminDashboard();
+}
 
 // UTC(ISO) 문자열을 브라우저의 로컬 시간대 기준 "YYYY-MM-DDTHH:mm" 형식으로 변환
 function toLocalDatetimeString(isoString) {
