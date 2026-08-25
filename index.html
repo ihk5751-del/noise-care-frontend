@@ -1466,6 +1466,13 @@ function closeRecordDetail() {
 }
 
 
+// UTC(ISO) 문자열을 브라우저의 로컬 시간대 기준 "YYYY-MM-DDTHH:mm" 형식으로 변환
+function toLocalDatetimeString(isoString) {
+  const d = new Date(isoString);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 async function loadRecords() {
   isLoading = true;
   renderHome();
@@ -1482,7 +1489,7 @@ async function loadRecords() {
     records = data.map(r => ({
       id: r.id,
       type: r.type,
-      time: r.occurred_at.slice(0, 16), // datetime-local 형식에 맞춤
+      time: toLocalDatetimeString(r.occurred_at), // UTC → 로컬(KST) 시간으로 올바르게 변환
       db: r.db_level,
       memo: r.memo,
       status: r.status,
