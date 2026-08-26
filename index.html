@@ -1285,6 +1285,7 @@ async function renderAdminDashboard() {
   }
 
   body.innerHTML = `
+    <div id="adminReportContent">
     <div class="invite-code-card">
       <div class="label">입주민 초대 코드</div>
       <div class="code">${complex ? complex.invite_code : '----'}</div>
@@ -1373,11 +1374,15 @@ async function renderAdminDashboard() {
             `;
           }).join('')
     }
+    </div>
+
+    <div class="export-btn" id="adminExportBtn" onclick="exportAdminReportPdf()">📄 PDF 리포트로 내보내기</div>
   `;
 
   // 상세 모달에서 조회할 수 있도록 전역에 보관
   window.__adminRecordsById = {};
   window.__adminUserLabels = userLabels;
+  window.__unitComplexName = complex ? complex.name : '관리사무소';
   complexRecords.forEach(r => { window.__adminRecordsById[r.id] = r; });
 }
 
@@ -2083,6 +2088,43 @@ async function exportReportPdf() {
     pdf.save(`층간소음_리포트_${today}.pdf`);
   } catch (err) {
     console.error('PDF 생성 실패:', err);
+    alert('PDF 생성에 실패했어요. 잠시 후 다시 시도해주세요.');
+  } finally {
+    btn.textContent = originalText;
+    btn.style.pointerEvents = 'auto';
+    btn.style.display = 'block';
+  }
+}
+
+async function exportAdminReportPdf() {
+  const btn = document.getElementById('adminExportBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'PDF 만드는 중...';
+  btn.style.pointerEvents = 'none';
+  btn.style.display = 'none'; // 캡처 이미지에 버튼 자체는 안 나오게
+
+  try {
+    const reportEl = document.getElementById('adminReportContent');
+    const canvas = await html2canvas(reportEl, {
+      backgroundColor: '#F7F5F1',
+      scale: 2,
+    });
+    const imgData = canvas.toDataURL('image/png');
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 12;
+    const imgWidth = pageWidth - margin * 2;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const complexName = window.__unitComplexName || '관리사무소';
+    pdf.save(`${complexName}_민원리포트_${today}.pdf`);
+  } catch (err) {
+    console.error('관리자 PDF 생성 실패:', err);
     alert('PDF 생성에 실패했어요. 잠시 후 다시 시도해주세요.');
   } finally {
     btn.textContent = originalText;
