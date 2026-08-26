@@ -67,10 +67,11 @@
   .admin-tabs { display: flex; gap: 6px; padding: 12px 0 4px; }
   .admin-tab { flex: 1; text-align: center; padding: 9px 0; border-radius: 8px; font-size: 12.5px; font-weight: 700; color: #8c8375; background: #F1EDE4; cursor: pointer; }
   .admin-tab.on { background: var(--slate); color: #fff; }
-  .unit-list-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
+  .unit-list-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; box-shadow: 0 1px 2px rgba(35,32,28,0.04); transition: transform .12s ease, background-color .12s ease; }
   .unit-list-row .u-main { font-size: 13px; font-weight: 700; color: var(--charcoal); }
   .unit-list-row .u-sub { font-size: 10.5px; color: #a89f8f; margin-top: 2px; }
-  .add-complex-card { border: 1px dashed #D9A066; border-radius: 10px; padding: 14px; text-align: center; margin-top: 12px; cursor: pointer; color: var(--amber); font-size: 13px; font-weight: 700; }
+  .unit-list-row:active, .add-complex-card:active { transform: scale(0.98); background: #F5F2EA; }
+  .add-complex-card { border: 1px dashed #D9A066; border-radius: 10px; padding: 14px; text-align: center; margin-top: 12px; cursor: pointer; color: var(--amber); font-size: 13px; font-weight: 700; transition: transform .12s ease, background-color .12s ease; }
 
   /* ---- 요약 카드 ---- */
   .summary-row { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -96,7 +97,7 @@
   .summary-card .trend.flat { color: #a89f8f; }
 
   /* ---- 추이 그래프 ---- */
-  .trend-chart-wrap { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+  .trend-chart-wrap { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(35,32,28,0.04); }
   .trend-chart-wrap .chart-title { font-size: 11.5px; font-weight: 700; color: var(--charcoal); margin-bottom: 10px; }
   .trend-bars { display: flex; align-items: flex-end; gap: 6px; height: 56px; }
   .trend-bars .bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
@@ -106,7 +107,7 @@
   .trend-labels span { font-size: 9.5px; color: #a89f8f; }
 
   /* ---- 세대별 민원 빈도 ---- */
-  .unit-freq-wrap { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+  .unit-freq-wrap { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(35,32,28,0.04); }
   .unit-freq-wrap .chart-title { font-size: 11.5px; font-weight: 700; color: var(--charcoal); margin-bottom: 10px; }
   .unit-freq-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .unit-freq-row:last-child { margin-bottom: 0; }
@@ -118,7 +119,7 @@
   .unit-freq-alert { font-size: 10.5px; color: #C0392B; margin-top: 8px; }
 
   /* ---- 처리 현황 분포 ---- */
-  .status-dist-wrap { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+  .status-dist-wrap { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(35,32,28,0.04); }
   .status-dist-wrap .chart-title { font-size: 11.5px; font-weight: 700; color: var(--charcoal); margin-bottom: 12px; }
   .status-dist-bar { display: flex; height: 16px; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
   .status-dist-bar .seg { height: 100%; }
@@ -153,6 +154,7 @@
     display: flex; justify-content: space-between; align-items: center;
     background: white; border: 1px solid var(--line); border-radius: 12px;
     padding: 12px 14px; margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(35,32,28,0.04);
   }
   .billing-tier-row.matched { border-color: var(--amber); background: #FBF6EE; }
   .billing-tier-row .bt-name { font-weight: 700; font-size: 13px; color: var(--slate); }
@@ -368,6 +370,7 @@
   .invite-code-card {
     background: white; border: 1.5px dashed var(--amber); border-radius: 12px;
     padding: 14px; text-align: center; margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(35,32,28,0.04);
   }
   .invite-code-card .label { font-size: 10.5px; color: #8c8375; }
   .invite-code-card .code {
@@ -378,8 +381,9 @@
 
   .proxy-entry-btn {
     background: white; border: 1.5px dashed var(--slate-light); border-radius: 12px;
-    padding: 12px; margin-top: 10px; text-align: center;
+    padding: 12px; margin: 10px 0 16px; text-align: center;
     font-size: 12.5px; font-weight: 700; color: var(--slate-light); cursor: pointer;
+    box-shadow: 0 1px 2px rgba(35,32,28,0.04);
   }
   .proxy-modal {
     position: absolute; inset: 0; z-index: 65;
@@ -400,7 +404,10 @@
     display: flex; justify-content: space-between; align-items: center;
     background: white; border: 1px solid var(--line); border-radius: 10px;
     padding: 10px 13px; margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(35,32,28,0.04);
+    transition: transform .12s ease, background-color .12s ease;
   }
+  .resident-row[onclick]:active { transform: scale(0.98); background: #F5F2EA; }
   .resident-row .label { font-size: 11.5px; font-weight: 700; color: var(--charcoal); }
   .resident-row .count { font-size: 11px; color: var(--amber); font-weight: 700; }
 
@@ -512,6 +519,24 @@
   .site-footer strong { color: #8c8375; }
   .site-footer .footer-links { margin-top: 3px; }
   .site-footer .footer-links a { color: #a89f8f; text-decoration: underline; }
+
+  /* ---- 눌림 효과(active state): 눌렀을 때 살짝 작아지거나 어두워지는 반응 ---- */
+  * { -webkit-tap-highlight-color: transparent; }
+  .submit-btn, .export-btn, .billing-cta, .fab, .kakao-btn,
+  .type-choice, .nav-item, .t-copy, .resource-card,
+  .status-chip, .db-meter-btn {
+    transition: transform .12s ease, filter .12s ease, opacity .12s ease, background-color .12s ease;
+  }
+  .submit-btn:active, .export-btn:active, .billing-cta:active, .db-meter-btn:active {
+    transform: scale(0.97);
+    filter: brightness(0.92);
+  }
+  .fab:active { transform: scale(0.94); filter: brightness(0.94); }
+  .kakao-btn:active { transform: scale(0.97); filter: brightness(0.93); }
+  .type-choice:active { transform: scale(0.96); }
+  .nav-item:active { background: #EFEBE1; border-radius: 10px; }
+  .t-copy:active { transform: scale(0.94); opacity: .7; }
+  .resource-card:active { transform: scale(0.98); background: #F5F2EA; }
 </style>
 <!--
   Supabase 연동 안내
@@ -652,13 +677,13 @@
     <div style="padding:14px 0 0;">
       <select class="form-input" id="complexSwitcher" onchange="onSwitchComplex()" style="margin-bottom:0;"></select>
     </div>
-    <div class="admin-tabs">
-      <div class="admin-tab on" id="tab-records" onclick="switchAdminTab('records')">민원 현황</div>
-      <div class="admin-tab" id="tab-units" onclick="switchAdminTab('units')">가입 세대</div>
-      <div class="admin-tab" id="tab-staff" onclick="switchAdminTab('staff')">직원</div>
-      <div class="admin-tab" id="tab-billing" onclick="switchAdminTab('billing')">요금제</div>
-    </div>
     <div id="adminBody"></div>
+    <div class="bottom-nav">
+      <div class="nav-item on" id="tab-records" onclick="switchAdminTab('records')"><span class="nav-icon">📋</span>민원현황</div>
+      <div class="nav-item" id="tab-units" onclick="switchAdminTab('units')"><span class="nav-icon">🏠</span>가입세대</div>
+      <div class="nav-item" id="tab-staff" onclick="switchAdminTab('staff')"><span class="nav-icon">🙋</span>직원</div>
+      <div class="nav-item" id="tab-billing" onclick="switchAdminTab('billing')"><span class="nav-icon">💳</span>요금제</div>
+    </div>
   </div>
 
   <!-- ===== 세대별 리포트 ===== -->
@@ -1128,8 +1153,9 @@ function onSwitchComplex() {
 
 function switchAdminTab(tab) {
   activeAdminTab = tab;
-  document.getElementById('tab-records').classList.toggle('on', tab === 'records');
-  document.getElementById('tab-units').classList.toggle('on', tab === 'units');
+  ['records', 'units', 'staff', 'billing'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('on', tab === t);
+  });
   renderAdminDashboard();
 }
 
