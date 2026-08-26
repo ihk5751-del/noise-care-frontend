@@ -2103,7 +2103,8 @@ async function exportAdminReportPdf() {
   btn.style.pointerEvents = 'none';
   btn.style.display = 'none'; // 캡처 이미지에 버튼 자체는 안 나오게
 
-  // 스크롤되는 부모 영역(.view) 때문에 캡처가 잘리지 않도록 잠깐 제한을 풀어줌
+  // 스크롤되는 부모 영역(.view)과 카드 모서리용 overflow:hidden(.app) 때문에
+  // 캡처가 잘리지 않도록 잠깐 제한을 풀어줌
   const scrollParent = document.getElementById('view-admin');
   const prevOverflow = scrollParent.style.overflowY;
   const prevHeight = scrollParent.style.height;
@@ -2111,6 +2112,16 @@ async function exportAdminReportPdf() {
   scrollParent.style.overflowY = 'visible';
   scrollParent.style.height = 'auto';
   scrollParent.style.maxHeight = 'none';
+
+  const appEl = document.querySelector('.app');
+  const prevAppOverflow = appEl.style.overflow;
+  const prevAppHeight = appEl.style.height;
+  appEl.style.overflow = 'visible';
+  appEl.style.height = 'auto';
+
+  const appWrapEl = document.querySelector('.app-wrap');
+  const prevWrapOverflow = appWrapEl.style.overflow;
+  appWrapEl.style.overflow = 'visible';
 
   try {
     const reportEl = document.getElementById('adminReportContent');
@@ -2141,6 +2152,9 @@ async function exportAdminReportPdf() {
     scrollParent.style.overflowY = prevOverflow;
     scrollParent.style.height = prevHeight;
     scrollParent.style.maxHeight = prevMaxHeight;
+    appEl.style.overflow = prevAppOverflow;
+    appEl.style.height = prevAppHeight;
+    appWrapEl.style.overflow = prevWrapOverflow;
     btn.textContent = originalText;
     btn.style.pointerEvents = 'auto';
     btn.style.display = 'block';
