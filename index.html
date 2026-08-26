@@ -2129,11 +2129,46 @@ async function exportAdminReportPdf() {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 12;
     const imgWidth = pageWidth - margin * 2;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+    // 한 페이지에 들어갈 수 있는 이미지 높이(mm)
+    const pageContentHeight = pageHeight - margin * 2;
+
+    if (imgHeight <= pageContentHeight) {
+      // 한 페이지로 충분한 경우
+      pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+    } else {
+      // 여러 페이지로 나눠서 넣기: 캔버스를 페이지 높이만큼씩 잘라 각 페이지에 붙임
+      const pageHeightPx = (pageContentHeight * canvas.width) / imgWidth;
+      let renderedHeightPx = 0;
+      let firstPage = true;
+
+      while (renderedHeightPx < canvas.height) {
+        const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedHeightPx);
+
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeightPx;
+        const ctx = pageCanvas.getContext('2d');
+        ctx.drawImage(
+          canvas,
+          0, renderedHeightPx, canvas.width, sliceHeightPx,
+          0, 0, canvas.width, sliceHeightPx
+        );
+
+        const pageImgData = pageCanvas.toDataURL('image/png');
+        const sliceImgHeight = (sliceHeightPx * imgWidth) / canvas.width;
+
+        if (!firstPage) pdf.addPage();
+        pdf.addImage(pageImgData, 'PNG', margin, margin, imgWidth, sliceImgHeight);
+
+        renderedHeightPx += sliceHeightPx;
+        firstPage = false;
+      }
+    }
 
     const today = new Date().toISOString().slice(0, 10);
     const complexName = window.__unitComplexName || '관리사무소';
