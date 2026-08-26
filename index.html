@@ -2103,11 +2103,22 @@ async function exportAdminReportPdf() {
   btn.style.pointerEvents = 'none';
   btn.style.display = 'none'; // 캡처 이미지에 버튼 자체는 안 나오게
 
+  // 스크롤되는 부모 영역(.view) 때문에 캡처가 잘리지 않도록 잠깐 제한을 풀어줌
+  const scrollParent = document.getElementById('view-admin');
+  const prevOverflow = scrollParent.style.overflowY;
+  const prevHeight = scrollParent.style.height;
+  const prevMaxHeight = scrollParent.style.maxHeight;
+  scrollParent.style.overflowY = 'visible';
+  scrollParent.style.height = 'auto';
+  scrollParent.style.maxHeight = 'none';
+
   try {
     const reportEl = document.getElementById('adminReportContent');
     const canvas = await html2canvas(reportEl, {
       backgroundColor: '#F7F5F1',
       scale: 2,
+      height: reportEl.scrollHeight,
+      windowHeight: reportEl.scrollHeight,
     });
     const imgData = canvas.toDataURL('image/png');
 
@@ -2127,6 +2138,9 @@ async function exportAdminReportPdf() {
     console.error('관리자 PDF 생성 실패:', err);
     alert('PDF 생성에 실패했어요. 잠시 후 다시 시도해주세요.');
   } finally {
+    scrollParent.style.overflowY = prevOverflow;
+    scrollParent.style.height = prevHeight;
+    scrollParent.style.maxHeight = prevMaxHeight;
     btn.textContent = originalText;
     btn.style.pointerEvents = 'auto';
     btn.style.display = 'block';
