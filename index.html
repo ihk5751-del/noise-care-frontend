@@ -326,6 +326,35 @@
   .db-meter-value { font-family: 'Noto Serif KR'; font-weight: 700; font-size: 22px; color: var(--slate); }
   .db-meter-note { font-size: 9.5px; color: #a89f8f; margin-top: 6px; line-height: 1.5; }
 
+  /* ---- 소음 녹음(파일 저장용) ---- */
+  .record-audio-row { display: flex; align-items: center; gap: 10px; }
+  .record-audio-btn {
+    background: var(--slate); color: white; border: none;
+    border-radius: 10px; padding: 12px 16px; font-size: 12px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    transition: background-color .15s;
+  }
+  .record-audio-btn.recording {
+    background: #C0392B;
+    animation: recordPulse 1.2s infinite;
+  }
+  @keyframes recordPulse {
+    0% { box-shadow: 0 0 0 0 rgba(192,57,43,0.45); }
+    70% { box-shadow: 0 0 0 8px rgba(192,57,43,0); }
+    100% { box-shadow: 0 0 0 0 rgba(192,57,43,0); }
+  }
+  .record-audio-time { font-family: 'Noto Serif KR'; font-weight: 700; font-size: 18px; color: var(--slate); letter-spacing: .02em; }
+  .audio-preview { margin-top: 10px; }
+  .audio-preview audio { width: 100%; }
+  .audio-save-btn {
+    margin-top: 10px;
+    background: var(--sage); color: white; text-align: center;
+    padding: 12px; border-radius: 10px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer;
+    transition: transform .12s ease, filter .12s ease;
+  }
+  .audio-save-btn:active { transform: scale(0.97); filter: brightness(0.92); }
+
   /* ---- 로그인 화면 ---- */
   .auth-gate {
     position: absolute;
@@ -761,6 +790,19 @@
           <div class="db-meter-value" id="dbValue">-- dB</div>
         </div>
         <div class="db-meter-note">※ 스마트폰 마이크는 전문 측정기처럼 보정되어 있지 않아 절대값이 정확하지 않습니다. 법적 효력이 없는 참고 자료이며, 공식 증거가 필요하면 이웃사이센터 무료 측정기 대여를 이용하세요.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">소음 녹음 (선택)</label>
+        <div class="record-audio-row">
+          <div class="record-audio-btn" id="audioRecordBtn" onclick="toggleAudioRecording()">🎙 녹음 시작</div>
+          <div class="record-audio-time" id="audioRecordTime">00:00</div>
+        </div>
+        <div class="audio-preview" id="audioPreviewWrap" style="display:none;">
+          <audio controls id="audioPreviewPlayer"></audio>
+          <div class="audio-save-btn" onclick="saveAudioToDevice()">📥 내 폰에 저장하기</div>
+        </div>
+        <div class="db-meter-note">※ 녹음 파일은 서버로 전송되지 않고 내 폰에만 저장돼요. 최대 5분까지 녹음할 수 있어요.</div>
       </div>
 
       <div class="form-group">
@@ -1975,6 +2017,142 @@ async function startRealMeasurement() {
   tick();
 }
 
+// ---------- 소음 녹음(파일로 저장) ----------
+// 참고: 이 녹음은 서버로 전송되지 않고, 사용자의 기기에 파일로 저장하는 용도로만 사용됩니다.
+let mediaRecorder = null;
+let audioChunks = [];
+let audioRecordStream = null;
+let audioRecordTimerInterval = null;
+let audioRecordSeconds = 0;
+let recordedAudioBlob = null;
+let recordedAudioMimeType = '';
+const MAX_RECORD_SECONDS = 300; // 안전장치: 최대 5분
+
+function pickAudioMimeType() {
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+  const candidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+  for (const type of candidates) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return '';
+}
+
+function resetAudioRecordingUI() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  }
+  clearInterval(audioRecordTimerInterval);
+  recordedAudioBlob = null;
+  audioChunks = [];
+  audioRecordSeconds = 0;
+  const btn = document.getElementById('audioRecordBtn');
+  if (btn) { btn.textContent = '🎙 녹음 시작'; btn.classList.remove('recording'); }
+  const timeEl = document.getElementById('audioRecordTime');
+  if (timeEl) timeEl.textContent = '00:00';
+  const previewWrap = document.getElementById('audioPreviewWrap');
+  if (previewWrap) previewWrap.style.display = 'none';
+}
+
+async function toggleAudioRecording() {
+  const btn = document.getElementById('audioRecordBtn');
+
+  // 녹음 중이면 정지
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    alert('이 브라우저는 녹음 기능을 지원하지 않아요.');
+    return;
+  }
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    alert('마이크 접근 권한이 필요해요. 브라우저 설정에서 마이크 권한을 허용해주세요.');
+    return;
+  }
+  audioRecordStream = stream;
+
+  const mimeType = pickAudioMimeType();
+  try {
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  } catch (err) {
+    alert('녹음을 시작하지 못했어요: ' + err.message);
+    stream.getTracks().forEach(t => t.stop());
+    return;
+  }
+  recordedAudioMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+  audioChunks = [];
+  audioRecordSeconds = 0;
+  document.getElementById('audioPreviewWrap').style.display = 'none';
+  document.getElementById('audioRecordTime').textContent = '00:00';
+
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) audioChunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = () => {
+    clearInterval(audioRecordTimerInterval);
+    audioRecordStream.getTracks().forEach(t => t.stop());
+    recordedAudioBlob = new Blob(audioChunks, { type: recordedAudioMimeType });
+    const url = URL.createObjectURL(recordedAudioBlob);
+    document.getElementById('audioPreviewPlayer').src = url;
+    document.getElementById('audioPreviewWrap').style.display = 'block';
+    btn.textContent = '🎙 녹음 시작';
+    btn.classList.remove('recording');
+  };
+
+  mediaRecorder.start();
+  btn.textContent = '⏹ 녹음 중지';
+  btn.classList.add('recording');
+
+  audioRecordTimerInterval = setInterval(() => {
+    audioRecordSeconds++;
+    const m = String(Math.floor(audioRecordSeconds / 60)).padStart(2, '0');
+    const s = String(audioRecordSeconds % 60).padStart(2, '0');
+    document.getElementById('audioRecordTime').textContent = `${m}:${s}`;
+    if (audioRecordSeconds >= MAX_RECORD_SECONDS) {
+      mediaRecorder.stop();
+    }
+  }, 1000);
+}
+
+async function saveAudioToDevice() {
+  if (!recordedAudioBlob) return;
+
+  const ext = recordedAudioMimeType.includes('mp4') ? 'm4a'
+    : recordedAudioMimeType.includes('ogg') ? 'ogg'
+    : 'webm';
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const filename = `층간소음_녹음_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.${ext}`;
+  const file = new File([recordedAudioBlob], filename, { type: recordedAudioMimeType });
+
+  // 모바일에서는 공유 시트를 통해 "파일에 저장"을 지원하는 경우 우선 사용 (특히 아이폰에서 유리)
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: filename });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // 사용자가 취소한 경우 조용히 종료
+      // 그 외 실패 시 아래 일반 다운로드 방식으로 대체
+    }
+  }
+
+  // 공유 시트를 지원하지 않는 브라우저는 일반 다운로드 방식 사용 (보통 '다운로드' 폴더에 저장됨)
+  const url = URL.createObjectURL(recordedAudioBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
 async function submitRecord() {
   const timeInput = document.getElementById('inputTime').value;
   const memo = document.getElementById('inputMemo').value.trim();
@@ -2239,7 +2417,7 @@ function switchView(name) {
 
   if (name === 'report') renderReport();
   if (name === 'template') renderTemplates();
-  if (name === 'add') updateNoiseDetailOptions(selectedType || 'impact');
+  if (name === 'add') { updateNoiseDetailOptions(selectedType || 'impact'); resetAudioRecordingUI(); }
 }
 
 // ---------- 초기화 ----------
