@@ -346,6 +346,32 @@
   .record-audio-time { font-family: 'Noto Serif KR'; font-weight: 700; font-size: 18px; color: var(--slate); letter-spacing: .02em; }
   .audio-preview { margin-top: 10px; }
   .audio-preview audio { width: 100%; }
+  .audio-record-list { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .audio-record-item {
+    background: white; border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px; box-shadow: 0 1px 2px rgba(35,32,28,0.04);
+  }
+  .audio-record-item-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .audio-record-timestamp {
+    display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--slate);
+    background: #F1EEE6; padding: 4px 9px; border-radius: 100px;
+  }
+  .audio-record-duration { font-size: 11px; color: #8c8375; font-weight: 700; }
+  .audio-record-item audio { width: 100%; }
+  .audio-record-item-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .audio-record-item-actions .audio-save-btn { flex: 1; margin-top: 0; }
+  .audio-delete-btn {
+    flex-shrink: 0; background: white; color: #C0392B; border: 1.5px solid #E8C9C3;
+    text-align: center; padding: 12px 14px; border-radius: 10px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; transition: transform .12s ease, background-color .12s ease;
+  }
+  .audio-delete-btn:active { transform: scale(0.96); background: #FBF0EE; }
+  .audio-record-list-summary { font-size: 10.5px; color: #8c8375; margin-top: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .audio-clear-all-btn { color: #8c8375; text-decoration: underline; cursor: pointer; font-size: 10.5px; }
+  .audio-record-timestamp {
+    display: inline-block; font-size: 11px; font-weight: 700; color: var(--slate);
+    background: #F1EEE6; padding: 4px 10px; border-radius: 100px; margin-bottom: 8px;
+  }
   .audio-save-btn {
     margin-top: 10px;
     background: var(--sage); color: white; text-align: center;
@@ -621,6 +647,10 @@
         <input type="datetime-local" class="form-input" id="proxyTimeInput">
       </div>
       <div class="form-group">
+        <label class="form-label">지속 시간 (분, 선택)</label>
+        <input type="number" min="0" class="form-input" id="proxyDurationInput" placeholder="예: 15">
+      </div>
+      <div class="form-group">
         <label class="form-label">메모</label>
         <textarea class="form-textarea" id="proxyMemoInput" placeholder="입주민이 전달한 내용을 적어주세요"></textarea>
       </div>
@@ -784,6 +814,11 @@
       </div>
 
       <div class="form-group">
+        <label class="form-label">지속 시간 (분, 선택)</label>
+        <input type="number" min="0" class="form-input" id="inputDuration" placeholder="예: 15">
+      </div>
+
+      <div class="form-group">
         <label class="form-label">소음 수준 측정 (참고용)</label>
         <div class="db-meter-row">
           <div class="db-meter-btn" onclick="startRealMeasurement()">🎙 측정 시작 (2.5초)</div>
@@ -793,16 +828,13 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">소음 녹음 (선택)</label>
+        <label class="form-label">소음 녹음 (선택, 여러 번 녹음해서 목록으로 관리할 수 있어요)</label>
         <div class="record-audio-row">
           <div class="record-audio-btn" id="audioRecordBtn" onclick="toggleAudioRecording()">🎙 녹음 시작</div>
           <div class="record-audio-time" id="audioRecordTime">00:00</div>
         </div>
-        <div class="audio-preview" id="audioPreviewWrap" style="display:none;">
-          <audio controls id="audioPreviewPlayer"></audio>
-          <div class="audio-save-btn" onclick="saveAudioToDevice()">📥 내 폰에 저장하기</div>
-        </div>
-        <div class="db-meter-note">※ 녹음 파일은 서버로 전송되지 않고 내 폰에만 저장돼요. 최대 5분까지 녹음할 수 있어요.</div>
+        <div class="audio-record-list" id="audioRecordList"></div>
+        <div class="db-meter-note">※ 녹음 파일은 서버로 전송되지 않고 내 폰에만 저장돼요. 이 화면을 벗어나면 목록이 초기화되니, 필요한 녹음은 미리 "내 폰에 저장하기"로 저장해두세요. 1회 최대 5분까지 녹음할 수 있어요.</div>
       </div>
 
       <div class="form-group">
@@ -1432,7 +1464,7 @@ async function renderAdminDashboard() {
               <div class="resident-row" style="cursor:pointer;" onclick="openRecordDetail('${r.id}')">
                 <div>
                   <div class="label">${labelForRecord(r)} · ${typeLabel}</div>
-                  <div style="font-size:10px; color:#a89f8f; margin-top:2px;">${dateStr} · ${dayNight} · ${r.db_level || '-'}dB</div>
+                  <div style="font-size:10px; color:#a89f8f; margin-top:2px;">${dateStr} · ${dayNight} · ${r.db_level || '-'}dB${r.duration_minutes ? ' · ' + r.duration_minutes + '분 지속' : ''}</div>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
                   <span class="status-chip status-${status}">${statusLabels[status]}</span>
@@ -1641,7 +1673,7 @@ async function openUnitReport(userId) {
               <div class="resident-row">
                 <div>
                   <div class="label">${typeLabel}${r.noise_detail ? ' · ' + r.noise_detail : ''}</div>
-                  <div style="font-size:10px; color:#a89f8f; margin-top:2px;">${dateStr} · ${dayNight} · ${r.db_level || '-'}dB</div>
+                  <div style="font-size:10px; color:#a89f8f; margin-top:2px;">${dateStr} · ${dayNight} · ${r.db_level || '-'}dB${r.duration_minutes ? ' · ' + r.duration_minutes + '분 지속' : ''}</div>
                   ${r.memo ? `<div style="font-size:11px; color:#6b6558; margin-top:4px;">${r.memo}</div>` : ''}
                 </div>
                 <span class="status-chip status-${status}">${statusLabels[status]}</span>
@@ -1670,6 +1702,7 @@ function openRecordDetail(recordId) {
     <div class="detail-row"><div class="detail-key">발생 시각</div><div class="detail-val">${dateStr} <span class="detail-daynight ${dayNight === '야간' ? 'night' : ''}">${dayNight}</span></div></div>
     <div class="detail-row"><div class="detail-key">소음 유형</div><div class="detail-val">${typeLabel}${r.noise_detail ? ' · ' + r.noise_detail : ''}</div></div>
     <div class="detail-row"><div class="detail-key">측정 dB</div><div class="detail-val">${r.db_level || '-'} dB (참고용, 법적 효력 없음)</div></div>
+    <div class="detail-row"><div class="detail-key">지속 시간</div><div class="detail-val">${r.duration_minutes ? r.duration_minutes + '분' : '입력 안 함'}</div></div>
     <div class="detail-row" style="align-items:flex-start;"><div class="detail-key">메모</div><div class="detail-val">${r.memo || '작성된 메모가 없어요.'}</div></div>
 
     <div class="detail-status-section">
@@ -1751,6 +1784,7 @@ let proxySelectedType = 'impact';
 function openProxyEntryModal() {
   document.getElementById('proxyUnitInput').value = '';
   document.getElementById('proxyMemoInput').value = '';
+  document.getElementById('proxyDurationInput').value = '';
   document.getElementById('proxyStatus').textContent = '';
   proxySelectedType = 'impact';
   document.getElementById('proxyTypeImpact').classList.add('selected');
@@ -1776,6 +1810,8 @@ async function saveProxyEntry() {
   const unit = document.getElementById('proxyUnitInput').value.trim();
   const timeInput = document.getElementById('proxyTimeInput').value;
   const memo = document.getElementById('proxyMemoInput').value.trim();
+  const durationInput = document.getElementById('proxyDurationInput').value;
+  const durationMinutes = durationInput ? parseInt(durationInput) : null;
   const statusEl = document.getElementById('proxyStatus');
 
   if (!unit) {
@@ -1796,6 +1832,7 @@ async function saveProxyEntry() {
     type: proxySelectedType,
     occurred_at: new Date(timeInput).toISOString(),
     db_level: null,
+    duration_minutes: durationMinutes,
     memo: memo || null,
     status: 'received',
   });
@@ -1835,6 +1872,7 @@ async function loadRecords() {
       type: r.type,
       time: toLocalDatetimeString(r.occurred_at), // UTC → 로컬(KST) 시간으로 올바르게 변환
       db: r.db_level,
+      duration_minutes: r.duration_minutes,
       memo: r.memo,
       status: r.status,
       admin_reply: r.admin_reply,
@@ -1920,6 +1958,7 @@ function renderHome() {
           </div>
           <div class="desc">${r.memo || '메모 없음'}</div>
           <span class="type-tag">${typeLabel}</span>
+          ${r.duration_minutes ? `<span class="type-tag" style="background:#EEF0F5; color:var(--slate-light); margin-left:4px;">⏱ ${r.duration_minutes}분 지속</span>` : ''}
           <span class="status-chip status-${status}" style="margin-left:6px;">${statusLabels[status]}</span>
           ${r.admin_reply ? `<div class="resident-reply-box">🏢 관리사무소: ${r.admin_reply}</div>` : ''}
         </div>
@@ -2017,16 +2056,17 @@ async function startRealMeasurement() {
   tick();
 }
 
-// ---------- 소음 녹음(파일로 저장) ----------
+// ---------- 소음 녹음(파일로 저장, 여러 개 누적 관리) ----------
 // 참고: 이 녹음은 서버로 전송되지 않고, 사용자의 기기에 파일로 저장하는 용도로만 사용됩니다.
+// 여러 번 녹음하면 audioRecordingsList 배열에 계속 쌓여서 하나씩 재생/저장/삭제할 수 있습니다.
 let mediaRecorder = null;
 let audioChunks = [];
 let audioRecordStream = null;
 let audioRecordTimerInterval = null;
 let audioRecordSeconds = 0;
-let recordedAudioBlob = null;
-let recordedAudioMimeType = '';
-const MAX_RECORD_SECONDS = 300; // 안전장치: 최대 5분
+let audioRecordStartTime = null;
+let audioRecordingsList = []; // [{ blob, mimeType, startTime, durationSeconds, url }]
+const MAX_RECORD_SECONDS = 300; // 안전장치: 1회 최대 5분
 
 function pickAudioMimeType() {
   if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
@@ -2037,20 +2077,78 @@ function pickAudioMimeType() {
   return '';
 }
 
+function renderAudioRecordingsList() {
+  const listEl = document.getElementById('audioRecordList');
+  if (!listEl) return;
+
+  if (audioRecordingsList.length === 0) {
+    listEl.innerHTML = '';
+    return;
+  }
+
+  const pad = n => String(n).padStart(2, '0');
+  const weekdayNames = ['일','월','화','수','목','금','토'];
+
+  const itemsHtml = audioRecordingsList.map((rec, idx) => {
+    const t = rec.startTime;
+    const tsText = `🕒 ${t.getFullYear()}.${pad(t.getMonth()+1)}.${pad(t.getDate())}(${weekdayNames[t.getDay()]}) ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+    const durM = pad(Math.floor(rec.durationSeconds / 60));
+    const durS = pad(rec.durationSeconds % 60);
+    return `
+      <div class="audio-record-item">
+        <div class="audio-record-item-head">
+          <span class="audio-record-timestamp">${tsText}</span>
+          <span class="audio-record-duration">${durM}:${durS}</span>
+        </div>
+        <audio controls src="${rec.url}"></audio>
+        <div class="audio-record-item-actions">
+          <div class="audio-save-btn" onclick="saveAudioToDevice(${idx})">📥 내 폰에 저장</div>
+          <div class="audio-delete-btn" onclick="deleteAudioRecording(${idx})">🗑 삭제</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const summaryHtml = `
+    <div class="audio-record-list-summary">
+      <span>총 ${audioRecordingsList.length}개 녹음됨</span>
+      <span class="audio-clear-all-btn" onclick="clearAllAudioRecordings()">전체 삭제</span>
+    </div>
+  `;
+
+  listEl.innerHTML = itemsHtml + summaryHtml;
+}
+
+function deleteAudioRecording(idx) {
+  const rec = audioRecordingsList[idx];
+  if (rec && rec.url) URL.revokeObjectURL(rec.url);
+  audioRecordingsList.splice(idx, 1);
+  renderAudioRecordingsList();
+}
+
+function clearAllAudioRecordings() {
+  if (audioRecordingsList.length === 0) return;
+  if (!confirm('녹음된 파일을 모두 지울까요? (아직 저장하지 않은 녹음은 사라져요)')) return;
+  audioRecordingsList.forEach(rec => { if (rec.url) URL.revokeObjectURL(rec.url); });
+  audioRecordingsList = [];
+  renderAudioRecordingsList();
+}
+
 function resetAudioRecordingUI() {
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     mediaRecorder.stop();
   }
   clearInterval(audioRecordTimerInterval);
-  recordedAudioBlob = null;
   audioChunks = [];
   audioRecordSeconds = 0;
+  audioRecordStartTime = null;
+  audioRecordingsList.forEach(rec => { if (rec.url) URL.revokeObjectURL(rec.url); });
+  audioRecordingsList = [];
   const btn = document.getElementById('audioRecordBtn');
   if (btn) { btn.textContent = '🎙 녹음 시작'; btn.classList.remove('recording'); }
   const timeEl = document.getElementById('audioRecordTime');
   if (timeEl) timeEl.textContent = '00:00';
-  const previewWrap = document.getElementById('audioPreviewWrap');
-  if (previewWrap) previewWrap.style.display = 'none';
+  renderAudioRecordingsList();
 }
 
 async function toggleAudioRecording() {
@@ -2077,17 +2175,19 @@ async function toggleAudioRecording() {
   audioRecordStream = stream;
 
   const mimeType = pickAudioMimeType();
+  let recorder;
   try {
-    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
   } catch (err) {
     alert('녹음을 시작하지 못했어요: ' + err.message);
     stream.getTracks().forEach(t => t.stop());
     return;
   }
-  recordedAudioMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+  mediaRecorder = recorder;
+  const currentMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
   audioChunks = [];
   audioRecordSeconds = 0;
-  document.getElementById('audioPreviewWrap').style.display = 'none';
+  audioRecordStartTime = new Date();
   document.getElementById('audioRecordTime').textContent = '00:00';
 
   mediaRecorder.ondataavailable = (e) => {
@@ -2097,10 +2197,20 @@ async function toggleAudioRecording() {
   mediaRecorder.onstop = () => {
     clearInterval(audioRecordTimerInterval);
     audioRecordStream.getTracks().forEach(t => t.stop());
-    recordedAudioBlob = new Blob(audioChunks, { type: recordedAudioMimeType });
-    const url = URL.createObjectURL(recordedAudioBlob);
-    document.getElementById('audioPreviewPlayer').src = url;
-    document.getElementById('audioPreviewWrap').style.display = 'block';
+
+    const blob = new Blob(audioChunks, { type: currentMimeType });
+    const url = URL.createObjectURL(blob);
+
+    // 새 녹음을 목록 맨 위에 추가 (기존 녹음은 지워지지 않고 계속 누적됨)
+    audioRecordingsList.unshift({
+      blob,
+      mimeType: currentMimeType,
+      startTime: audioRecordStartTime,
+      durationSeconds: audioRecordSeconds,
+      url,
+    });
+    renderAudioRecordingsList();
+
     btn.textContent = '🎙 녹음 시작';
     btn.classList.remove('recording');
   };
@@ -2120,16 +2230,18 @@ async function toggleAudioRecording() {
   }, 1000);
 }
 
-async function saveAudioToDevice() {
-  if (!recordedAudioBlob) return;
+async function saveAudioToDevice(idx) {
+  const rec = audioRecordingsList[idx];
+  if (!rec) return;
 
-  const ext = recordedAudioMimeType.includes('mp4') ? 'm4a'
-    : recordedAudioMimeType.includes('ogg') ? 'ogg'
+  const ext = rec.mimeType.includes('mp4') ? 'm4a'
+    : rec.mimeType.includes('ogg') ? 'ogg'
     : 'webm';
-  const now = new Date();
+  // 실제 녹음이 시작된 시각을 파일명에 정확히(초 단위까지) 반영 — 나중에 저장된 파일만 봐도 언제 녹음했는지 알 수 있도록
+  const t = rec.startTime;
   const pad = n => String(n).padStart(2, '0');
-  const filename = `층간소음_녹음_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.${ext}`;
-  const file = new File([recordedAudioBlob], filename, { type: recordedAudioMimeType });
+  const filename = `층간소음_녹음_${t.getFullYear()}${pad(t.getMonth()+1)}${pad(t.getDate())}_${pad(t.getHours())}${pad(t.getMinutes())}${pad(t.getSeconds())}.${ext}`;
+  const file = new File([rec.blob], filename, { type: rec.mimeType });
 
   // 모바일에서는 공유 시트를 통해 "파일에 저장"을 지원하는 경우 우선 사용 (특히 아이폰에서 유리)
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -2143,7 +2255,7 @@ async function saveAudioToDevice() {
   }
 
   // 공유 시트를 지원하지 않는 브라우저는 일반 다운로드 방식 사용 (보통 '다운로드' 폴더에 저장됨)
-  const url = URL.createObjectURL(recordedAudioBlob);
+  const url = URL.createObjectURL(rec.blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -2158,6 +2270,8 @@ async function submitRecord() {
   const memo = document.getElementById('inputMemo').value.trim();
   const dbVal = document.getElementById('dbValue').dataset.val || 40;
   const noiseDetail = document.getElementById('inputNoiseDetail').value;
+  const durationInput = document.getElementById('inputDuration').value;
+  const durationMinutes = durationInput ? parseInt(durationInput) : null;
 
   if (!timeInput) {
     alert('발생 시각을 입력해주세요.');
@@ -2174,6 +2288,7 @@ async function submitRecord() {
     noise_detail: noiseDetail || null,
     occurred_at: new Date(timeInput).toISOString(),
     db_level: parseInt(dbVal),
+    duration_minutes: durationMinutes,
     memo: memo,
   });
 
@@ -2189,6 +2304,7 @@ async function submitRecord() {
   document.getElementById('inputTime').value = '';
   document.getElementById('inputMemo').value = '';
   document.getElementById('inputNoiseDetail').value = '';
+  document.getElementById('inputDuration').value = '';
   document.getElementById('dbValue').textContent = '-- dB';
   document.getElementById('dbValue').dataset.val = '';
   selectType('impact');
