@@ -592,6 +592,16 @@
   .nav-item:active { background: #EFEBE1; border-radius: 10px; }
   .t-copy:active { transform: scale(0.94); opacity: .7; }
   .resource-card:active { transform: scale(0.98); background: #F5F2EA; }
+
+  /* ---- 신규 민원 실시간 토스트 알림 ---- */
+  .new-record-toast {
+    position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
+    background: var(--slate); color: white; font-size: 12.5px; font-weight: 700;
+    padding: 12px 20px; border-radius: 100px; white-space: nowrap;
+    box-shadow: 0 4px 10px rgba(30,42,68,0.3), 0 12px 24px -6px rgba(30,42,68,0.4);
+    z-index: 80; transition: top .35s ease;
+  }
+  .new-record-toast.show { top: 16px; }
 </style>
 <!--
   Supabase 연동 안내
@@ -1008,6 +1018,7 @@ function enterApp() {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('view-admin').classList.add('active');
     renderAdminDashboard();
+    subscribeToNewRecords();
   } else {
     switchView('home');
     loadRecords();
@@ -1223,6 +1234,42 @@ function onSwitchComplex() {
   }
   activeComplexId = val;
   renderAdminDashboard();
+}
+
+// ---------- 실시간 신규 민원 알림 (관리자가 앱을 켜둔 상태일 때 새로고침 없이 반영) ----------
+let recordsRealtimeChannel = null;
+
+function subscribeToNewRecords() {
+  if (recordsRealtimeChannel) return; // 중복 구독 방지
+  recordsRealtimeChannel = supabaseClient
+    .channel('admin-new-records')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'records' }, (payload) => {
+      const newRecord = payload.new;
+      if (!newRecord || newRecord.user_id === null) return; // 관리사무소 본인 대리접수는 알림 제외
+      if (!activeComplexId || newRecord.complex_id !== activeComplexId) return; // 지금 보고 있는 단지가 아니면 무시
+
+      showNewRecordToast();
+      if (activeAdminTab === 'records') {
+        renderAdminDashboard();
+      }
+    })
+    .subscribe();
+}
+
+function showNewRecordToast() {
+  let toast = document.getElementById('newRecordToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'newRecordToast';
+    toast.className = 'new-record-toast';
+    document.querySelector('.app').appendChild(toast);
+  }
+  toast.textContent = '🔔 새 민원이 접수됐어요';
+  toast.classList.add('show');
+  clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3200);
 }
 
 function switchAdminTab(tab) {
@@ -2265,6 +2312,45 @@ async function saveAudioToDevice(idx) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+// ---------- 관리사무소 즉시 알림 (신규 민원 접수 시) ----------
+async function notifyAdminNewRecord(noiseTypeLabel, dayNight) {
+  try {
+    if (!currentProfile || !currentProfile.complex_id) return;
+
+    const [{ data: mappings }, { data: complex }] = await Promise.all([
+      supabaseClient
+        .from('admin_complexes')
+        .select('admin_id, profiles(email)')
+        .eq('complex_id', currentProfile.complex_id),
+      supabaseClient
+        .from('complexes')
+        .select('name')
+        .eq('id', currentProfile.complex_id)
+        .maybeSingle(),
+    ]);
+
+    const adminEmails = (mappings || [])
+      .map(m => m.profiles && m.profiles.email)
+      .filter(Boolean);
+
+    if (adminEmails.length === 0) return; // 알림 받을 관리자 이메일이 없으면 조용히 종료
+
+    await fetch('/api/notify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: adminEmails,
+        complexName: complex ? complex.name : null,
+        unitLabel: currentProfile.unit_number || null,
+        noiseTypeLabel,
+        dayNight,
+      }),
+    });
+  } catch (e) {
+    console.warn('관리사무소 알림 발송 실패(기록 저장은 정상 완료됨):', e);
+  }
+}
+
 async function submitRecord() {
   const timeInput = document.getElementById('inputTime').value;
   const memo = document.getElementById('inputMemo').value.trim();
@@ -2299,6 +2385,11 @@ async function submitRecord() {
     alert('저장에 실패했어요. 잠시 후 다시 시도해주세요.');
     return;
   }
+
+  // 관리사무소에 즉시 이메일 알림 (실패해도 기록 저장 자체는 이미 완료된 상태이므로 조용히 처리)
+  const submittedTypeLabel = selectedType === 'impact' ? '직접충격' : '공기전달';
+  const submittedDayNight = getDayNightLabel(new Date(timeInput));
+  notifyAdminNewRecord(submittedTypeLabel, submittedDayNight);
 
   // 폼 초기화
   document.getElementById('inputTime').value = '';
