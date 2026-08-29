@@ -593,6 +593,38 @@
   .t-copy:active { transform: scale(0.94); opacity: .7; }
   .resource-card:active { transform: scale(0.98); background: #F5F2EA; }
 
+  /* ---- 생활 파트너 배너 (입주민 홈 전용) ---- */
+  .life-partner-section { margin-top: 22px; }
+  .life-partner-title { font-size: 12px; font-weight: 700; color: var(--slate); margin-bottom: 10px; }
+  .life-partner-card {
+    display: flex; align-items: center; gap: 13px;
+    border-radius: 14px; padding: 13px 14px; margin-bottom: 9px;
+    text-decoration: none; cursor: pointer;
+    transition: transform .12s ease, filter .12s ease;
+  }
+  .life-partner-card:active { transform: scale(0.98); filter: brightness(0.97); }
+  .life-partner-card.counsel { background: #E6F1FB; }
+  .life-partner-card.detective { background: #E1F5EE; }
+  .life-partner-icon {
+    width: 42px; height: 42px; border-radius: 11px; background: white;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 19px;
+  }
+  .life-partner-body { flex: 1; min-width: 0; }
+  .life-partner-name-row { display: flex; align-items: center; gap: 6px; }
+  .life-partner-name { font-size: 13.5px; font-weight: 700; }
+  .life-partner-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 100px; background: white;
+  }
+  .life-partner-desc { font-size: 11px; margin-top: 2px; }
+  .life-partner-arrow { font-size: 14px; flex-shrink: 0; }
+  .life-partner-card.counsel .life-partner-name { color: #042C53; }
+  .life-partner-card.counsel .life-partner-badge { color: #0C447C; }
+  .life-partner-card.counsel .life-partner-desc,
+  .life-partner-card.counsel .life-partner-arrow { color: #185FA5; }
+  .life-partner-card.detective .life-partner-name { color: #04342C; }
+  .life-partner-card.detective .life-partner-desc,
+  .life-partner-card.detective .life-partner-arrow { color: #0F6E56; }
+
   /* ---- 신규 민원 실시간 토스트 알림 ---- */
   .new-record-toast {
     position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
@@ -776,6 +808,33 @@
       <div class="care-banner">우리 집의 작은 소리가 이웃에게는 큰 무게로 다가갈 수 있어요.<br>서로를 배려하는 걸음이 편안한 우리 동네를 만듭니다.</div>
       <div class="summary-row" id="summaryRow"></div>
       <div id="timelineList"></div>
+
+      <div class="life-partner-section">
+        <div class="life-partner-title">생활 파트너</div>
+
+        <a class="life-partner-card counsel" href="tel:1577-0199">
+          <div class="life-partner-icon">📞</div>
+          <div class="life-partner-body">
+            <div class="life-partner-name-row">
+              <span class="life-partner-name">심리상담센터</span>
+              <span class="life-partner-badge">국가무료</span>
+            </div>
+            <div class="life-partner-desc">1577-0199 · 24시간 상담 가능</div>
+          </div>
+          <span class="life-partner-arrow">›</span>
+        </a>
+
+        <a class="life-partner-card detective" href="https://detective.friendsstudio.co.kr" target="_blank" rel="noopener noreferrer">
+          <div class="life-partner-icon">🔍</div>
+          <div class="life-partner-body">
+            <div class="life-partner-name-row">
+              <span class="life-partner-name">프렌즈탐정사무소</span>
+            </div>
+            <div class="life-partner-desc">학교폭력 · 스토킹 · 데이트폭력 사실 확인</div>
+          </div>
+          <span class="life-partner-arrow">›</span>
+        </a>
+      </div>
     </div>
     <div class="fab" onclick="switchView('add')">＋<span class="fab-label">기입</span></div>
     <div class="bottom-nav">
