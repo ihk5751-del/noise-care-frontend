@@ -61,7 +61,11 @@
   .top-bar .title { font-family: 'Noto Serif KR'; font-weight: 700; font-size: 21px; margin-top: 5px; letter-spacing: -0.01em; }
 
   .view { display: none; flex: 1; overflow-y: auto; padding: 16px 16px 90px; }
-  .view.active { display: block; }
+  .view.active { display: block; animation: viewFadeIn .28s ease; }
+  @keyframes viewFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
   /* ---- 단지 전환 / 관리자 탭 ---- */
   .admin-tabs { display: flex; gap: 6px; padding: 12px 0 4px; }
@@ -184,10 +188,11 @@
     display: none; align-items: center; justify-content: center;
     padding: 24px;
   }
-  .record-detail-modal.open { display: flex; }
+  .record-detail-modal.open { display: flex; animation: modalFadeIn .18s ease; }
   .record-detail-card {
     background: var(--paper); border-radius: 16px; padding: 20px;
     width: 100%; max-width: 340px; box-shadow: 0 12px 32px rgba(0,0,0,0.24);
+    animation: modalPopIn .22s cubic-bezier(.34,1.4,.64,1);
   }
   .record-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
   .record-detail-title { font-family: 'Noto Serif KR'; font-weight: 700; font-size: 16px; color: var(--slate); }
@@ -446,11 +451,20 @@
     display: none; align-items: center; justify-content: center;
     padding: 24px;
   }
-  .proxy-modal.open { display: flex; }
+  .proxy-modal.open { display: flex; animation: modalFadeIn .18s ease; }
+  @keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
   .proxy-modal-card {
     background: var(--paper); border-radius: 16px; padding: 20px;
     width: 100%; max-width: 340px; box-shadow: 0 12px 32px rgba(0,0,0,0.24);
     max-height: 85vh; overflow-y: auto;
+    animation: modalPopIn .22s cubic-bezier(.34,1.4,.64,1);
+  }
+  @keyframes modalPopIn {
+    from { opacity: 0; transform: scale(0.92) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
   }
   .proxy-modal-title { font-family: 'Noto Serif KR'; font-weight: 700; font-size: 16px; color: var(--slate); margin-bottom: 4px; }
   .proxy-modal-desc { font-size: 11px; color: #8c8375; margin-bottom: 14px; line-height: 1.5; }
@@ -561,6 +575,14 @@
     border-radius: 22px;
     overflow: hidden;
     box-shadow: 0 1px 2px rgba(30,26,20,0.06), 0 30px 60px -12px rgba(30,26,20,0.28);
+  }
+
+  /* ---- 실제 폰 화면에서는 카드처럼 떠 보이지 않고 화면 전체를 꽉 채움 ---- */
+  @media (max-width: 480px) {
+    body { padding: 0; }
+    .app-wrap { max-width: 100%; border-radius: 0; box-shadow: none; }
+    .app { min-height: 100vh; min-height: 100dvh; border-radius: 0; max-width: 100%; }
+    .site-footer { display: none; } /* 실제 폰에서는 하단 사업자정보 푸터를 숨겨 화면을 온전히 앱처럼 사용 */
   }
 
   .site-footer {
@@ -936,6 +958,9 @@
       <div class="title">소통 템플릿</div>
     </div>
     <div style="padding-top:16px;" id="templateBody"></div>
+    <div style="text-align:center; padding: 6px 0 8px; font-size:10px; color:#a89f8f;">
+      <a href="/privacy.html" target="_blank" style="color:#a89f8f; text-decoration:underline;">사업자정보 및 이용약관</a>
+    </div>
     <div class="bottom-nav">
       <div class="nav-item" id="nav-home3" onclick="switchView('home')"><span class="nav-icon">📋</span>기록</div>
       <div class="nav-item" id="nav-report3" onclick="switchView('report')"><span class="nav-icon">📄</span>리포트</div>
